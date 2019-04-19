@@ -33,9 +33,18 @@ object OpeningWindow {
 
     def calculateDistances(locations: RDD[Location]) : RDD[Double] = {
         val anchor = locations.first()
+        val remaining = locations.mapPartitionsWithIndex{
+            case (index, iterator) => if(index==0) iterator.drop(1) else iterator
+        }
+        val remaining2 = remaining.mapPartitionsWithIndex{
+            case (index, iterator) => if(index==0) iterator.drop(1) else iterator
+        }
+        val floater = remaining2.first()
+        print(floater)
+
         val locationMap = locations.map(Location => Location)
         // remove first point because it is the float
-        locations.map(Location => findDistance(anchor, Location))
+        locations.map(Location => findDistance(anchor, Location, floater))
     }
 
     /** Given 2 points, find the gradient of the line formed */
@@ -58,10 +67,12 @@ object OpeningWindow {
         intercept
     }
 
-    def findDistance(anchor: Location, point: Location) : Double = {
-        val grad = findGradient(anchor, point)
+    def findDistance(anchor: Location, point: Location, floater: Location) : Double = {
+        val grad = findGradient(anchor, floater)
         val intercept = findIntercept(anchor, grad)
-        Math.abs(grad*point.longitude + (-1)*point.latitude + intercept) / Math.sqrt((grad*grad) + (-1)*(-1))
+        val distance = Math.abs(grad*point.longitude + (-1)*point.latitude + intercept) / Math.sqrt((grad*grad) + (-1)*(-1))
+        println(distance)
+        distance
     }
 
 
