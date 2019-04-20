@@ -13,7 +13,7 @@ object OpeningWindow {
     /** Main function */
     def main(args: Array[String]): Unit = {
 
-        val lines   = sc.textFile("data/test.csv")
+        val lines   = sc.textFile("data/driver.csv")
         val output = "data/output.csv"
         val header = lines.first() // extract header
         val linesWithoutHeader = lines.filter(row => row != header) // filter out header
@@ -36,36 +36,65 @@ object OpeningWindow {
 
     def findCompressed(locations: RDD[Location]) : ArrayBuffer[Location] = {
         var y = 0
-        var compressed = ArrayBuffer[Location]()
+        var compressed = ArrayBuffer[Location]() // create a copy of location rdd as an array buffer
+        // compressed keeps the compressed route
+        val locationArray = locations.collect() // convert location rdd to array
 
-        compressed += locations.first()
-        var remaining = locations.mapPartitionsWithIndex{
-            case (index, iterator) => if(index==0) iterator.drop(1) else iterator
-        }
-        while (y < locations.count()) {
+        println("initial  size")
+        println(locations.count())
+
+        // add first anchor to compressed
+        compressed += locationArray(0)
+        var remaining = locationArray
+//        var remaining = locations.mapPartitionsWithIndex{
+//            case (index, iterator) => if(index==0) iterator.drop(1) else iterator
+//        }
+        while (y < locationArray.length) {
             val anchor = compressed.last
+            val anchorIndex = remaining.indexOf(anchor)
+            remaining = remaining.drop(anchorIndex+1)
+            println("anchor index is")
+            println(anchorIndex)
             // remove everything until new anchor
-
+            println("current size remaining")
+            println(remaining.length)
+            //println(remaining.deep.mkString("\n"))
             var i = 0
-            while(i < remaining.count()-1) {
+            var lastProcessed = anchor
+            while(i < remaining.length-1) {
                 val points = remaining.take(2+i)
+                println("current anchor")
+                println(anchor)
                 println("Over here")
                 points.foreach(Location => println(Location))
                 val result = findNewAnchor(anchor,points)
                 println("new anchor index")
-                println(result._1)
+                println(result._2)
                 if(result._2 != -1) {
                     // add new anchor to compressed list
                     println("add this point")
                     println(result._1)
                     compressed += result._1
-                    i = result._2
-                    i = remaining.count().toInt
+                   // remaining = locations.subtract(compressedRdd).sortBy(_.timeStamp)
+                    // moment it is broken, force exit loop
+                    i = remaining.length
+                    lastProcessed = result._1
                 } else {
-                    i = i+1
+                    // if no new anchor found, last processed is the end of buffer region
+                    lastProcessed = remaining(remaining.length-1)
                 }
+
+                i = i+1
             }
-            y = y + i
+            // start of sliding window
+            y = locationArray.indexOf(lastProcessed) + 1
+            println("y is")
+            println(y)
+            val lastElement = locationArray(locationArray.length-1)
+            if (y == locationArray.length && !compressed.contains(lastElement)) {
+                // add in last point
+                compressed += lastElement
+            }
         }
         compressed
     }
@@ -95,15 +124,19 @@ object OpeningWindow {
         val floater = points.last
         val grad = findGradient(anchor, floater)
         val intercept = findIntercept(anchor, grad)
+
         var i =0
+        println("length of buffer")
+        println(points.length)
 
         while(i < points.length) {
             val distance = Math.abs(grad*points(i).longitude + (-1)*points(i).latitude + intercept) /
                 Math.sqrt((grad*grad) + (-1)*(-1))
+            println("HERE IS THE DISTANCE")
+            println(distance)
+            println(threshold)
             if(distance > threshold) {
-                println("HERE IS THE DISTANCE")
-                println(distance)
-                println(threshold)
+                println("distance > threshold")
                 return (points(i),i)
             }
             i = i+1
