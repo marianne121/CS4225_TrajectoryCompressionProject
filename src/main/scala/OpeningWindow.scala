@@ -105,6 +105,9 @@ object OpeningWindow {
         val coordOneY = anchor.latitude
         val coordTwoX = point.longitude
         val coordTwoY = point.latitude
+        if (coordOneX - coordTwoX == 0) { // gradient is infinity, vertical line
+            return -1
+        }
         val gradient = (coordOneY - coordTwoY) / (coordOneX - coordTwoX)
         println("gradient is " + gradient)
         gradient
@@ -130,14 +133,21 @@ object OpeningWindow {
         println(points.length)
 
         while(i < points.length) {
-            val distance = Math.abs(grad*points(i).longitude + (-1)*points(i).latitude + intercept) /
-                Math.sqrt((grad*grad) + (-1)*(-1))
+            var distance = 0.toDouble
+            if(grad != -1) {
+                distance = Math.abs(grad*points(i).longitude + (-1)*points(i).latitude + intercept) /
+                    Math.sqrt((grad*grad) + (-1)*(-1))
+            } else { // vertical line
+                distance = Math.abs(points(i).longitude - anchor.longitude)
+            }
+
             println("HERE IS THE DISTANCE")
             println(distance)
             println(threshold)
             if(distance > threshold) {
                 println("distance > threshold")
-                return (points(i),i)
+                // return the point just before the float as the new anchor
+                return (points(points.length-2),i)
             }
             i = i+1
         }
