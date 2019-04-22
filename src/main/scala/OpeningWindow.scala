@@ -13,25 +13,29 @@ object OpeningWindow {
     /** Main function */
     def main(args: Array[String]): Unit = {
 
-        val lines   = sc.textFile("data/driver.csv")
-        val output = "data/output.csv"
+        val lines   = sc.textFile("data/separateOrders/order6")
+
+        val output = "data/output6.csv"
         val header = lines.first() // extract header
         val linesWithoutHeader = lines.filter(row => row != header) // filter out header
         val raw = rawLocations(linesWithoutHeader)
-        //val rawWithIndex = raw.zipWithIndex()
-        //val indexKey = rawWithIndex.map{case (k,v) => (v,k)}
-        val compressed = findCompressed(raw)
+
+        val sorted = raw.sortBy(Location => Location.timeStamp)
+        val compressed = findCompressed(sorted)
+
         val compressedRdd = sc.parallelize(compressed)
         sc.parallelize(compressedRdd.collect()).repartition(1).saveAsTextFile(output)
 
     }
 
+
     /** Load locations from given file*/
     def rawLocations(lines: RDD[String]): RDD[Location] = lines.map(line => {
             val arr = line.split(",")
-            Location(longitude = arr(0).toDouble,
-                latitude = arr(1).toDouble,
-                timeStamp = arr(2).toDouble)
+        // To implement separate by order id
+            Location(longitude = arr(2).toDouble,
+                latitude = arr(3).toDouble,
+                timeStamp = arr(4).toDouble)
     })
 
     def findCompressed(locations: RDD[Location]) : ArrayBuffer[Location] = {
@@ -91,9 +95,10 @@ object OpeningWindow {
             println("y is")
             println(y)
             val lastElement = locationArray(locationArray.length-1)
-            if (y == locationArray.length && !compressed.contains(lastElement)) {
+            if (remaining.length==1 && !compressed.contains(lastElement)) {
                 // add in last point
                 compressed += lastElement
+                y = y +1
             }
         }
         compressed
@@ -123,7 +128,7 @@ object OpeningWindow {
     }
 
     def findNewAnchor(anchor: Location, points: Array[Location]) : (Location, Int) = {
-        val threshold = 5.0*Math.pow(10,-8)
+        val threshold = 1.0*Math.pow(10,-4)
         val floater = points.last
         val grad = findGradient(anchor, floater)
         val intercept = findIntercept(anchor, grad)
