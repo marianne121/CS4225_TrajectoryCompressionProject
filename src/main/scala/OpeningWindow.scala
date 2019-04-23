@@ -15,44 +15,45 @@ object OpeningWindow {
 
         val lines   = sc.textFile("data/separateOrders/order6")
 
-        val output = "data/output6.csv"
+        val output = "data/output.csv"
         val header = lines.first() // extract header
         val linesWithoutHeader = lines.filter(row => row != header) // filter out header
         val raw = rawLocations(linesWithoutHeader)
+        val groupedPointsByOrderID = groupPoints(raw)
 
-        val sorted = raw.sortBy(Location => Location.timeStamp)
-        val compressed = findCompressed(sorted)
+        val sorted = sort(groupedPointsByOrderID)
+        val compressed = sorted.map(k => (k._1, findCompressed(k._2)))
 
-        val compressedRdd = sc.parallelize(compressed)
-        sc.parallelize(compressedRdd.collect()).repartition(1).saveAsTextFile(output)
+        val out = convertToOutput(compressed)
+        out.saveAsTextFile(output)
 
     }
 
 
     /** Load locations from given file*/
-    def rawLocations(lines: RDD[String]): RDD[Location] = lines.map(line => {
+    def rawLocations(lines: RDD[String]): RDD[(String, Location)] = lines.map(line => {
             val arr = line.split(",")
         // To implement separate by order id
-            Location(longitude = arr(2).toDouble,
+            val s = arr(0) + arr(1)
+            val l = Location(longitude = arr(2).toDouble,
                 latitude = arr(3).toDouble,
                 timeStamp = arr(4).toDouble)
+        (s,l)
     })
 
-    def findCompressed(locations: RDD[Location]) : ArrayBuffer[Location] = {
-        var y = 0
+    def findCompressed(locations: Iterable[Location]) : Iterable[Location] = {
+       var y = 0
         var compressed = ArrayBuffer[Location]() // create a copy of location rdd as an array buffer
         // compressed keeps the compressed route
-        val locationArray = locations.collect() // convert location rdd to array
+        //Todo: line timesout
+        val locationArray = locations.toArray // convert location rdd to array
 
         println("initial  size")
-        println(locations.count())
+        println(locations.size)
 
         // add first anchor to compressed
         compressed += locationArray(0)
         var remaining = locationArray
-//        var remaining = locations.mapPartitionsWithIndex{
-//            case (index, iterator) => if(index==0) iterator.drop(1) else iterator
-//        }
         while (y < locationArray.length) {
             val anchor = compressed.last
             val anchorIndex = remaining.indexOf(anchor)
@@ -101,7 +102,7 @@ object OpeningWindow {
                 y = y +1
             }
         }
-        compressed
+        compressed.toIterable
     }
 
     /** Given 2 points, find the gradient of the line formed */
@@ -160,8 +161,25 @@ object OpeningWindow {
 
     }
 
+    /** group by orderId */
+    def groupPoints(points: RDD[(String,Location)]): RDD[(String, Iterable[Location])] =
+        points.groupByKey()
 
+    /** sort timestamps */
+    def sort(points: RDD[(String, Iterable[Location])]): RDD[(String, Iterable[Location])] =
+        points.map(x => {
+            var arr = x._2.toArray
+            arr = arr.sortBy(p => p.timeStamp)
+            (x._1, arr)
+        })
 
+    def convertToOutput(points: RDD[(String, Iterable[Location])]): RDD[(String,Double,Double,Double)] =
+        points.flatMapValues(x => x)
+            .map(x => {
+                val id = x._1
+                val point = x._2
 
+                (id, point.timeStamp, point.longitude, point.latitude)
+            })
 
 }
