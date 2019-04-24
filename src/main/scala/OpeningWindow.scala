@@ -22,7 +22,9 @@ object OpeningWindow {
         val groupedPointsByOrderID = groupPoints(raw)
 
         val sorted = sort(groupedPointsByOrderID)
-        val compressed = sorted.map(k => (k._1, findCompressed(k._2)))
+        val compressed =
+        // comment to test new distance functions
+//        val compressed = sorted.map(k => (k._1, findCompressed(k._2)))
 
         val out = convertToOutput(compressed)
         out.saveAsTextFile(output)
@@ -80,7 +82,6 @@ object OpeningWindow {
                     println("add this point")
                     println(result._1)
                     compressed += result._1
-                   // remaining = locations.subtract(compressedRdd).sortBy(_.timeStamp)
                     // moment it is broken, force exit loop
                     i = remaining.length
                     lastProcessed = result._1
@@ -120,12 +121,66 @@ object OpeningWindow {
     }
 
     /** Given a point and the gradient, find the intercept of the line */
-    def findIntercept(anchor: Location, grad: Double) : Double = {
-        val coordX = anchor.longitude
-        val coordY = anchor.latitude
+    def findIntercept(point: Location, grad: Double) : Double = {
+        val coordX = point.longitude
+        val coordY = point.latitude
         val intercept = coordY - (grad * coordX)
         println("intercept is " + intercept)
         intercept
+    }
+
+    def findPerpendicular(gradient: Double, floater: Location) : (Double, Double) = {
+        val perpendicularGradient = -1*gradient
+        val intercept = findIntercept(floater, perpendicularGradient)
+        // y = perpendicularGradient (x) + intercept
+        (perpendicularGradient, intercept)
+    }
+
+    def findPointIntersect(firstGrad: Double, secondGrad: Double, firstIntercept: Double,
+                               secondIntercept: Double): (Double, Double) = {
+        val xCoordinate = (firstIntercept - secondIntercept) / (firstGrad - secondGrad)
+        val yCoordinate = firstGrad * xCoordinate + firstIntercept
+        (xCoordinate, yCoordinate)
+    }
+
+    def getDistanceFromLatLonInKm(lat1: Double,lon1: Double,lat2: Double,lon2: Double): Double = {
+        val R = 6371 // Radius of the earth in km
+        val dLat = math.toRadians(lat2-lat1)
+        val dLon = math.toRadians(lon2-lon1)
+        val rLat1 = math.toRadians(lat1)
+        val rLat2 = math.toRadians(lat2)
+        val a = math.sin(dLat/2) * math.sin(dLat/2) + math.cos(rLat1) * math.cos(rLat2) * math.sin(dLon/2) * math.sin(dLon/2)
+        val c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
+        val d = R * c  // Distance in km
+
+        d
+    }
+
+    def findNewAnchorTest(anchor: Location, points: Array[Location]) : () = {
+        //val threshold = 1.0*Math.pow(10,-4)
+        val floater = points.last
+        val grad = findGradient(anchor, floater)
+        val intercept = findIntercept(anchor, grad)
+        var i = 0
+
+        while(i < points.length) {
+            var distance = 0.toDouble
+            val perpendicularEqn = findPerpendicular(grad, points(i))
+            val intersectPoint = findPointIntersect(grad, perpendicularEqn._1, intercept, perpendicularEqn._2)
+            //exceptions: gradient = -1 (infinity) --> vertical line or gradient = 0 --> horizontal line
+            distance = getDistanceFromLatLonInKm(anchor.latitude, anchor.longitude, points(i).latitude, points(i).longitude)
+
+            println("HERE IS THE DISTANCE")
+            println(distance)
+//            println(threshold)
+//            if(distance > threshold) {
+//                println("distance > threshold")
+//                // return the point just before the float as the new anchor
+//                return (points(points.length-2),i)
+//            }
+            i = i+1
+        }
+
     }
 
     def findNewAnchor(anchor: Location, points: Array[Location]) : (Location, Int) = {
