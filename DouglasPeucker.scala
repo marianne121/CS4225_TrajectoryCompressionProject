@@ -10,7 +10,7 @@ object DouglasPeucker extends DouglasPeucker {
 
   /** Main function */
   def main(args: Array[String]): Unit = {
-    val targetError = 0.01
+    val targetError = 0.001
 
     val lines = sc.textFile("src/main/resources/sampleOf3drivers19orders.txt")
     val points = getPoints(lines)
@@ -89,20 +89,24 @@ class DouglasPeucker extends Serializable {
     routes.map(route => {
       val routeId = route._1
       val routeArray = route._2.toArray
-      var eps = 0.001
+      var eps = 0.01
       var error = 1000.0
+      var averageError = 1000.0
       var compressedRoute = Array[Point]()
       do {
         val (t1, t2) = douglasPeucker(0, routeArray.length-1, routeArray, eps)
         compressedRoute = t1
         error = t2
-        print("eps: ")
-        println(eps)
-        print("error: ")
-        println(error)
-        println()
-        eps = eps - 0.0001
-      } while (error > targetError)
+        averageError = error / compressedRoute.length
+
+//        print("eps: ")
+//        println(eps)
+//        print("average error: ")
+//        println(averageError)
+//        println()
+
+        eps = eps - 0.001
+      } while (averageError > targetError)
       (routeId, compressedRoute, error)
     })
   }
