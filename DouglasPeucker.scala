@@ -10,8 +10,9 @@ object DouglasPeucker extends DouglasPeucker {
 
   /** Main function */
   def main(args: Array[String]): Unit = {
-    val targetError = 0.001
+    val targetError = 10.0
 
+//    val lines = sc.textFile("data/didi/gps_20161001")
     val lines = sc.textFile("src/main/resources/sampleOf3drivers19orders.txt")
     val points = getPoints(lines)
     val routes = getRoutes(points)
@@ -51,7 +52,7 @@ class DouglasPeucker extends Serializable {
     val c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
     val d = R * c  // Distance in km
 
-    d
+    d * 1000.0
   }
 
 
@@ -89,7 +90,7 @@ class DouglasPeucker extends Serializable {
     routes.map(route => {
       val routeId = route._1
       val routeArray = route._2.toArray
-      var eps = 0.01
+      var eps = targetError
       var error = 1000.0
       var averageError = 1000.0
       var compressedRoute = Array[Point]()
@@ -105,7 +106,7 @@ class DouglasPeucker extends Serializable {
 //        println(averageError)
 //        println()
 
-        eps = eps - 0.001
+        eps = eps - (eps / 10)
       } while (averageError > targetError)
       (routeId, compressedRoute, error)
     })
@@ -159,13 +160,23 @@ class DouglasPeucker extends Serializable {
 
   def compressionResult(original: Array[(String, Iterable[Point])], compressed: Array[(String, Array[Point], Double)]): Unit = {
     val combined = original zip compressed
+    var compressionRatioSum = 0.0
+    var averageErrorSum = 0.0
     combined.foreach(tuple => {
       println(tuple._1._1)
-      print("Average Error: ")
-      println(tuple._2._3 / tuple._1._2.toArray.length.toFloat)
+      print("Error: ")
+      val averageError = tuple._2._3 / tuple._1._2.toArray.length.toFloat
+      averageErrorSum += averageError
+      println(averageError)
       print("Compression Ratio: ")
-      println(tuple._2._2.length.toFloat / tuple._1._2.toArray.length.toFloat)
+      val compressionRatio = tuple._2._2.length.toFloat / tuple._1._2.toArray.length.toFloat
+      compressionRatioSum += compressionRatio
+      println(compressionRatio)
       println()
     })
+    print("Average Error: ")
+    println(averageErrorSum / combined.length)
+    print("Average Compression: ")
+    println(compressionRatioSum / combined.length)
   }
 }
