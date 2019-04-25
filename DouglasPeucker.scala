@@ -12,13 +12,20 @@ object DouglasPeucker extends DouglasPeucker {
   def main(args: Array[String]): Unit = {
     val targetError = 10.0
 
-//    val lines = sc.textFile("data/didi/gps_20161001")
+    val t1 = System.nanoTime
+
+//        val lines = sc.textFile("data/hurricane.txt")
+//    val lines = sc.textFile("data/geolife.txt")
     val lines = sc.textFile("src/main/resources/sampleOf3drivers19orders.txt")
     val points = getPoints(lines)
     val routes = getRoutes(points)
     val compressedRoutes = compressRoutes(routes, targetError)
 
     compressionResult(routes.collect(), compressedRoutes.collect())
+
+    val duration = (System.nanoTime - t1) / 1e9d
+    print("Running Time: ")
+    println(duration)
   }
 }
 
@@ -90,7 +97,9 @@ class DouglasPeucker extends Serializable {
     routes.map(route => {
       val routeId = route._1
       val routeArray = route._2.toArray
-      var eps = targetError
+//      val routeArray = route._2.toArray.sortBy(p => p.timeStamp)
+      var eps = targetError * 10
+      val decrement = eps / 100
       var error = 1000.0
       var averageError = 1000.0
       var compressedRoute = Array[Point]()
@@ -99,16 +108,9 @@ class DouglasPeucker extends Serializable {
         compressedRoute = t1
         error = t2
         averageError = error / compressedRoute.length
-
-//        print("eps: ")
-//        println(eps)
-//        print("average error: ")
-//        println(averageError)
-//        println()
-
-        eps = eps - (eps / 10)
+        eps = eps - decrement
       } while (averageError > targetError)
-      (routeId, compressedRoute, error)
+      (routeId, compressedRoute, averageError)
     })
   }
 
@@ -165,11 +167,11 @@ class DouglasPeucker extends Serializable {
     combined.foreach(tuple => {
       println(tuple._1._1)
       print("Error: ")
-      val averageError = tuple._2._3 / tuple._1._2.toArray.length.toFloat
+      val averageError = tuple._2._3
       averageErrorSum += averageError
       println(averageError)
       print("Compression Ratio: ")
-      val compressionRatio = tuple._2._2.length.toFloat / tuple._1._2.toArray.length.toFloat
+      val compressionRatio =  tuple._1._2.toArray.length.toFloat / tuple._2._2.length.toFloat
       compressionRatioSum += compressionRatio
       println(compressionRatio)
       println()
